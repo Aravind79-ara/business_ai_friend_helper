@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Discovery meeting - AI support assistant",
+    "transcript_text": "We need an AI support assistant that classifies customer emails and retrieves facts from a knowledge base. We want the system to handle informational questions automatically but require human review for refunds, complaints, and security issues. The team also wants proposal generation from meeting notes and a clear scope estimate."
+  },
+  {
+    "title": "Follow-up meeting - revised scope",
+    "transcript_text": "After the first meeting, we decided to keep the AI gate for low-risk questions only. The final scope now includes a review queue for quote requests and refund requests, and we want the workflow to preserve manual approval for all billing changes. We no longer need a full automation for policy exemptions."
+  },
+  {
+    "title": "Client kickoff - implementation goals",
+    "transcript_text": "The client wants an internal support assistant for product knowledge and customer support. We need an automated workflow for how-to questions, a human review queue for suspicious account issues, and a proposal generator that estimates project effort from meeting transcripts."
+  }
+]
