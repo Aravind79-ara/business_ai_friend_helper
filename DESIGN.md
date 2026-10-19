@@ -1,193 +1,115 @@
-# AI Tech Consultant Capstone Design
+# Design — AI Tech Consultant
 
-## 1. Problem statement
-A software services business needs a single AI operating layer to help its team answer product questions, triage incoming customer emails, and convert meetings into client-ready scopes. The solution must keep knowledge current, cite evidence, require human approval for consequential actions, and provide a transparent audit trail for technical interviews and day-to-day operations.
+## 1. The problem
 
-## 2. Proposed architecture
-We will build a single Python application with three task modules behind a FastAPI backend and a compact Streamlit UI. The Knowledge Brain is the single source of product truth. Tasks 2 and 3 retrieve product facts from the Brain through the documented HTTP API rather than duplicating retrieval logic.
+Small businesses repeat the same technical and administrative work. A founder may answer the same customer questions, read incoming emails, and turn meeting notes into proposals. Each task takes time, and facts can become inconsistent when they are copied between tools.
 
-The system is intentionally monolithic, but modularized by task:
-- Browser/UI -> Streamlit dashboard and simple API client
-- FastAPI application -> validation, orchestration, SQLAlchemy models, service layer
-- Task 1 service -> sitemap-aware ingestion, article extraction, chunking, retrieval, citations, escalations
-- Task 2 service -> email classification, evidence retrieval, prompt-based drafting, review workflow
-- Task 3 service -> transcript parsing, capability checks, effort estimation, proposal generation
-- Shared persistence -> SQLite (development) / PostgreSQL-ready SQLAlchemy setup
-- Local vector search -> lightweight SQLite vector metadata store with keyword and metadata indexing (ready for pgvector later)
+The goal is not to make an AI sound clever. The goal is to help a small team complete common work faster while keeping business facts consistent and leaving important decisions with a person.
 
-## 3. Component responsibility matrix
-| Component | Responsibility | Key inputs | Key outputs |
-|---|---|---|---|
-| Web UI | Human review, dashboards, demos | emails, transcripts, query requests | review decisions, status summaries |
-| API layer | Validation, schema enforcement, routing | Pydantic models, headers, payloads | JSON responses |
-| Knowledge Brain | Ingest product knowledge | sitemap, articles, images | answers, source citations, escalation records |
-| Inbox Agent | Classify and draft replies | email payload, Brain API, history | draft reply, approval state |
-| Meeting Agent | Turn transcript into scope | transcript, Brain API, capability catalog | requirements, estimates, proposal |
-| Persistence | Store docs, drafts, proposals, logs | app entities | durable records and audit history |
-| Evaluation harness | Measure quality | evaluation datasets | scorecards, regression checks |
+This prototype combines three workflows around one shared Knowledge Brain. The shared layer is important because the inbox and proposal workflows should use the same company facts instead of inventing their own versions.
 
-## 4. Database schema
-The initial implementation will use SQLite for simplicity and development speed. SQLAlchemy models provide a clean migration path to PostgreSQL later.
+## 2. Users and success criteria
 
-Core entities:
-- knowledge_document
-  - id, source_url, title, canonical_url, content_hash, version, active, deleted_at, ingested_at
-- knowledge_section
-  - id, document_id, heading, section_order, content
-- knowledge_image
-  - id, document_id, image_url, caption, description, nearby_text, confidence
-- knowledge_chunk
-  - id, document_id, section_id, chunk_text, embedding_text, metadata_json
-- ingestion_manifest
-  - id, source_url, last_seen, last_successful_fetch, status, error_count
-- escalation_record
-  - id, question, evidence_json, reason, status, created_at, resolved_at
-- approved_knowledge_answer
-  - id, question, answer, sources_json, approved_by, approved_at, version
-- email_message
-  - id, email_id, sender, recipient, subject, body, thread_id, timestamp, category, risk, processed_at
-- email_draft
-  - id, email_id, category, risk, retrieved_knowledge_json, suggested_reply, approval_required, prompt_version, model_id
-- review_decision
-  - id, draft_id, approved, rejected, replacement_text, correction_reason, reviewer_name, decided_at
-- meeting_transcript
-  - id, title, source_url, transcript_text, created_at
-- meeting_requirement
-  - id, transcript_id, requirement_text, category, confidence
-- proposal_document
-  - id, transcript_id, client_name, scope_summary, estimate_hours, proposal_text, created_at
-- evaluator_result
-  - id, task_name, case_id, score, notes, created_at, model_name
+**Primary user:** a founder or small-business operator who has limited time and does not have a dedicated operations team.
 
-## 5. API contracts
-### Knowledge Brain
-- POST /api/v1/query
-  - request: {question: str, session_id?: str, strict?: bool}
-  - response: {answer, status, sources, relevant_images, request_id, human_escalation_required}
-- POST /api/v1/ingestion/run
-  - request: {test_batch_only?: bool, limit?: int}
-  - response: {ingestion_id, summary, status}
-- GET /api/v1/ingestion/status
-  - response: {status, pages_processed, pages_failed, last_updated}
-- POST /api/v1/escalations
-  - request: {question, evidence, reason}
-  - response: {id, status}
-- GET /api/v1/escalations
-  - response: {items: [...]}
-- POST /api/v1/escalations/{id}/resolve
-  - request: {approved_answer, sources, reviewer}
-  - response: {status}
-- GET /health
-  - response: {status: "ok"}
+The product should:
+- Find relevant facts in supplied business information.
+- Make it clear when the supplied information does not answer a question.
+- Help process email without sending an unapproved message.
+- Turn meeting notes into a structured SOW that a human can edit.
+- Make failures visible and keep the workflow understandable.
 
-### Inbox Agent
-- POST /api/v1/inbox/process
-  - request: {email_id, sender, receiver, subject, body, thread_id, timestamp, previous_messages?}
-  - response: {draft, category, risk, human_approval_required, citations}
+Success should be measured with test results, not adjectives. The evaluation should track answer correctness and grounding, email classification and draft quality, SOW completeness, response latency, and estimated cost per successful task. The actual results belong in `EVALS.md`.
 
-### Meeting Agent
-- POST /api/v1/meetings/process
-  - request: {title, transcript_text, client_name?, follow_up_to_id?}
-  - response: {requirements, estimate_hours, scope_summary, proposal}
+## 3. The three tasks
 
-## 6. Main user journeys
-1. Knowledge discoverability
-   - User asks a product question via UI or API.
-   - Brain retrieves relevant text and image notes.
-   - Answer includes citations and escalates when evidence is weak.
-2. Email triage and response
-   - Support inbox receives new email.
-   - Agent classifies it and retrieves relevant product facts.
-   - Draft is reviewed by a human before sending if fielded as high-risk.
-3. Meeting-to-scope workflow
-   - Meeting transcript is uploaded.
-   - Agent extracts requirements and checks current product capabilities.
-   - Proposal is generated with estimated effort and follow-up questions.
+### Task 1 — Knowledge Brain
 
-## 7. Four-day implementation plan
-Day 1
-- Confirm requirements and repository state.
-- Create design and API contracts.
-- Scaffold FastAPI + Streamlit app and shared configuration.
-- Define SQLAlchemy models and database bootstrap.
-Day 2
-- Implement Knowledge Brain ingestion, extraction, retrieval, and API endpoints.
-- Create sample seed docs and initial evaluation questions.
-Day 3
-- Implement Inbox Agent classification/draft workflow and review UI.
-- Add the synthetic email dataset and evaluation harness.
-Day 4
-- Implement Meeting Agent transcript-to-requirements flow and proposal generation.
-- Run the evaluation suite, fix failures, and document final trade-offs.
+**Why it exists:** both other workflows need reliable access to business-specific facts.
 
-## 8. Risk register
-| Risk | Impact | Mitigation |
-|---|---|---|
-| External site rate-limits | Crawl may fail or be slow | Limit concurrency, add backoff, respect robots, resume state |
-| OpenAI API unavailable | Live chat responses are unavailable | Keep knowledge retrieval available and label fallback responses clearly |
-| Weak retrieval quality | Hallucinated answers | Require citations and answer with insufficient-evidence status |
-| Human approval bottleneck | Slower support operations | Keep low-risk categories eligible for autonomous send with explicit policy |
-| Fake or stale data in evaluation sets | Misleading measurements | Keep datasets versioned and clearly marked synthetic |
+**Responsibilities:** accept business knowledge, retrieve relevant passages for a query, and provide context to the calling workflow. The system should avoid presenting unsupported guesses as known facts.
 
-## 9. Evaluation plan
-We will evaluate at least 20 representative cases for each major component, with clear expected outcomes and fixed JSON outputs:
-- Task 1: 20 knowledge questions over product docs and image notes
-- Task 2: 20 email classification and draft-validation cases
-- Task 3: 20 transcript-to-scope and proposal cases
-- Model-selection decision: compare at least two OpenAI model configurations using 20-30 cases each
+**Chosen scope:** a simple knowledge ingestion and retrieval path that the other tasks can call through an API.
 
-We will score:
-- answer correctness
-- citation completeness
-- email category accuracy
-- required human approval accuracy
-- proposal completeness and requirement extraction
-- latency and cost
+**Dropped from the initial scope:** complex autonomous web research, automatic updates from every business system, and a full enterprise permissions layer. These add setup and security work before the core retrieval behavior is validated.
 
-## 10. Required environment variables
-- OPENAI_API_KEY
-- OPENAI_MODEL
-- APP_ENV
-- DATABASE_URL
-- SECRET_KEY
-- ALLOWED_ORIGINS
-- CRAWL_RATE_LIMIT_SEC
-- CRAWL_MAX_CONCURRENCY
-- LOG_LEVEL
-- UI_HOST
-- UI_PORT
+### Task 2 — Inbox Agent
 
-## 11. Assumptions and deferred features
-Assumptions:
-- Local SQLite is sufficient for demo and validation.
-- Product knowledge will be represented by seeded sample documentation plus crawlable public articles.
-- External website access is available during the capstone run.
-- OpenAI credentials may be absent in local development; a clearly labeled retrieval-only fallback keeps the demo functional.
+**Why it exists:** email triage and drafting are frequent, repetitive tasks, but an incorrect message can damage a customer relationship.
 
-Deferred features:
-- Real email provider integration (SMTP/Microsoft Graph) for live sending
-- Full enterprise ticketing workflow
-- Production-ready pgvector deployment
-- True multi-tenant authorization
-- Large-scale article indexing beyond the demo corpus
+**Responsibilities:** accept an email, identify its intent, use the Knowledge Brain API when business context is needed, and produce a suggested action or reply for review.
 
-## 12. Mermaid architecture diagram
+**Safety boundary:** the agent should not silently send external messages. A human should approve the final response. If the email asks for a fact that is not in the knowledge base, the system should ask for clarification or flag the missing information.
+
+**Dropped from the initial scope:** autonomous sending, complex multi-inbox synchronization, and handling every attachment format. These would make failures harder to detect and would require additional authorization and integration work.
+
+### Task 3 — Meeting-to-SOW
+
+**Why it exists:** meeting notes often contain scattered requirements, assumptions, and open questions. A proposal built from incomplete notes can create scope disputes later.
+
+**Responsibilities:** accept meeting notes, use the Knowledge Brain API for company context, and draft an SOW with scope, deliverables, assumptions, exclusions, milestones, and open questions where applicable.
+
+**Safety boundary:** the output is a draft, not a binding agreement. Missing prices, deadlines, or commitments must be marked as unknown rather than invented.
+
+**Dropped from the initial scope:** automatic contract execution, legally authoritative language, and automatic pricing commitments. These need business approval and legal or financial review.
+
+## 4. How the tasks connect
+
 ```mermaid
-flowchart LR
-    UI[Browser / Streamlit UI] --> API[FastAPI Application]
-    API --> KB[Task 1: Knowledge Brain]
-    API --> INBOX[Task 2: Inbox Agent]
-    API --> MEET[Task 3: Meeting Agent]
-
-    KB --> DB[(SQLite / SQLAlchemy)]
-    KB --> DOCS[Knowledge Articles / Images / Chunks]
-    INBOX --> KB
-    MEET --> KB
-
-    KB --> OPENAI[OpenAI API]
-
-    API --> OBS[Logs, metrics, eval results]
+flowchart TD
+    U[Founder / Operator] --> UI[Application UI or API]
+    UI --> K[Task 1: Knowledge Brain]
+    UI --> I[Task 2: Inbox Agent]
+    UI --> S[Task 3: Meeting-to-SOW]
+    I -->|retrieve business context| K
+    S -->|retrieve business context| K
+    K --> R[Retrieved facts and source context]
+    R --> I
+    R --> S
+    I --> H[Human review]
+    S --> H
+    H --> O[Approved email or SOW]
 ```
 
-## 13. Implementation stance
-This project is a production-minded proof of concept. It is not a mockup-only example. The code will include durable persistence, validation, typed models, test datasets, and a reviewable workflow with explicit human approval gates.
+The diagram describes the intended logical flow. Update it if the implementation uses different service boundaries or data paths. Task 2 and Task 3 must call Task 1's API; they should not bypass it with separate copies of the knowledge store.
+
+## 5. Model and system choices
+
+The design separates retrieval and application logic from language generation. This makes it possible to change the language model without rewriting every workflow and to test retrieval independently.
+
+For each model used, record the exact provider, model identifier, date tested, configuration, and fallback behavior in `EVALS.md`. Do not write that one model is better unless both models were tested against the same cases.
+
+Model choice should consider:
+- **Quality:** correct, grounded, complete output on the task-specific test set.
+- **Cost:** measured or provider-calculated cost for the same input and output workload.
+- **Speed:** median and p95 latency across repeated runs.
+- **Reliability:** timeout rate, invalid output rate, and behavior when information is missing.
+
+A smaller or cheaper model may be enough for straightforward classification. A more capable model may be worth its cost for complex SOW drafting. This is a hypothesis to test, not a result to claim before measurement.
+
+## 6. What can break
+
+| Failure | Impact | Expected handling |
+|---|---|---|
+| Knowledge base has no relevant fact | Unsupported answer | Say the information is missing; ask for clarification |
+| Retrieval returns the wrong passage | Confident but incorrect result | Include source context and test retrieval relevance |
+| API is unavailable or times out | Inbox/SOW task cannot get context | Return a clear error; do not pretend retrieval succeeded |
+| Email is ambiguous or hostile | Wrong intent or unsafe reply | Flag for human review |
+| Meeting notes omit price or deadline | Invented commercial commitment | Mark as unknown or open question |
+| Model returns malformed output | UI or downstream processing fails | Validate schema and show a recoverable error |
+| Prompt injection appears in email or notes | Untrusted text may try to change agent behavior | Treat supplied content as data, not system instructions |
+| API key or customer data is exposed | Security and privacy incident | Keep secrets out of source control; minimize stored data |
+
+## 7. What I would build next
+
+1. **Improve evaluations first.** Run the same fixed test set against each candidate model and save raw outputs, timing, and token/cost data.
+2. **Improve source grounding.** Show which business facts support each answer and measure unsupported-claim rates.
+3. **Add approval and audit history.** Record who approved an email or SOW and which version was approved.
+4. **Harden the API.** Add authentication, rate limits, input limits, timeouts, and structured error responses where missing.
+5. **Add realistic integrations only after the core works.** For example, an email provider or meeting transcription integration can be added after sample-data behavior is reliable.
+
+## 8. Scope and honest status
+
+This is a prototype. It can help draft and organize work, but it does not guarantee correctness, completeness, legal suitability, or business outcomes. A successful demo is not evidence of production readiness.
+
+Before submission, replace any design statement that does not match the code. List unfinished features explicitly. Add measured results only after running the tests described in `EVALS.md`.

@@ -1,57 +1,51 @@
-# AI Tech Consultant Capstone
+# AI Tech Consultant
 
-This project implements a production-minded AI consultant for three connected workflows:
-1. Knowledge Brain: product knowledge retrieval with citations and escalation
-2. Inbox Agent: email triage and response drafting with reviewer approval gates
-3. Meeting-to-Scope workflow: transcript analysis and proposal generation
+AI Tech Consultant helps a small business turn its existing knowledge into useful, repeatable work. It connects three workflows: answering questions from business knowledge, processing incoming emails, and drafting a Statement of Work (SOW) from meeting notes.
 
-## Quick start
+## The three tasks
 
-1. Install Python 3.15 and create a virtual environment:
-   `py -3.15 -m venv .venv`
-2. Activate it and install the latest compatible dependencies:
-   `.\.venv\Scripts\Activate.ps1`
-   `python -m pip install --upgrade pip`
-   `$env:PYYAML_FORCE_LIBYAML = "0"`
-   `python -m pip install --upgrade -r requirements.txt`
-3. Copy `.env.example` to `.env` and fill in credentials.
-4. Run the FastAPI app:
-   `python -m uvicorn app.main:app --reload`
-5. Run the Streamlit UI:
-   `python -m streamlit run app/ui.py`
-6. Run the tests:
-   `python -m pytest`
+- **Knowledge Brain:** stores business information and retrieves relevant context for a question.
+- **Inbox Agent:** uses the Knowledge Brain API to help classify and draft replies to business emails.
+- **Meeting-to-SOW:** uses the Knowledge Brain API and meeting notes to draft a structured SOW for human review.
 
-The Knowledge Brain includes a conversational AI chat grounded in retrieved knowledge.
-Set `OPENAI_API_KEY` in `.env` to enable live OpenAI responses. The default model is
-`gpt-4.1-mini`; set `OPENAI_MODEL` to another model available to your API account if needed.
-The OpenAI API key is
-separate from a ChatGPT subscription and may incur API usage charges. Without an API key,
-the chat clearly labels its response as retrieval-only. The chat API is available at
-`POST /api/v1/chat` and accepts a `message` plus optional recent `history`.
+The shared knowledge layer reduces duplicated context and helps the workflows use the same business facts.
 
-Example request:
+## Run locally
 
-```json
-{
-  "message": "What should go into a project proposal?",
-  "history": [
-    {"role": "user", "content": "We just had a discovery meeting."},
-    {"role": "assistant", "content": "What are the project goals?"}
-  ]
-}
+> Verify these commands against the current repository before submitting. Replace this section with the exact command that works from a clean clone.
+
+```bash
+git clone https://github.com/Aravind79-ara/business_ai_friend_helper.git
+cd business_ai_friend_helper
+# Install dependencies and configure environment variables as documented in the project.
+# Start the complete application using the repository's one-command launcher.
 ```
 
-The project requires Python 3.11 or newer; Python 3.15 is the recommended workspace
-interpreter. Dependencies use lower bounds rather than fixed pins, so a fresh install
-selects the newest versions compatible with the chosen Python interpreter.
+If the repository uses Docker Compose, the intended one-command start may be:
 
-## Project structure
-- `app/` - application source code
-- `data/` - SQLite database, evaluation datasets, and seed content
-- `tests/` - automated tests and evaluation scripts
-- `DESIGN.md` - architecture and planning artifacts
+```bash
+docker compose up --build
+```
 
-## Notes
-Knowledge Brain chat uses the OpenAI API. When no OpenAI API key is configured, the app
-shows a retrieval-only answer and clearly indicates that no live AI response was generated.
+Only keep that command if `docker-compose.yml` or `compose.yaml` exists and it starts all required services successfully.
+
+## Configuration
+
+1. Copy the example environment file (if provided) to `.env`.
+2. Add required API keys and local configuration.
+3. Never commit `.env`, passwords, access tokens, customer emails, or private business documents.
+4. Use sample data for the demo.
+
+## Verify
+
+Run the project's documented automated tests and follow `EVALS.md` to reproduce the three task evaluations. The demo should show the happy path and at least one honest failure.
+
+## Documentation
+
+- [`DESIGN.md`](DESIGN.md): problem, architecture, choices, trade-offs, and next steps.
+- [`EVALS.md`](EVALS.md): test cases and model evaluation protocol.
+- [`AI_LOG.md`](AI_LOG.md): AI-assisted development record.
+
+## Status and limitations
+
+This repository is a capstone prototype, not a replacement for human approval. Generated email replies and SOWs must be reviewed before sending to a customer. Do not claim accuracy, latency, or cost results until they have been measured on the current code and recorded in `EVALS.md`.
